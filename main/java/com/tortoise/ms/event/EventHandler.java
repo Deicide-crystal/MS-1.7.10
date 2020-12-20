@@ -9,13 +9,16 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.DamageSource;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingEvent.LivingUpdateEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 
 public class EventHandler {
+    /* 如果为true,则不调用任何监听器 */
+    /* 这就不演示了,自己去试试 */
+    public static boolean AntiEvent = false;
+
     /* 反伤:实体攻击事件,取消该事件就是取消攻击判定 */
     @SubscribeEvent
     public void OnLivingAttack(LivingAttackEvent e) {
@@ -47,6 +50,13 @@ public class EventHandler {
     /* 因为Minecraft.runGameLoop会检测游戏是否暂停,而MinecraftServer.run没有 */
     /* 你需要添加自己的判断,如正在时停就不tick */
     /* 如果要的话,可以再出一期视频写转换MinecraftServer.run */
+    /* 这样已经是较为完美的时停 */
+    /* 如果你不想因为事件被掐导致时停失效就transform MinecraftServer.run */
+    /* MinecraftServer.run没有被混淆 */
+    /* 因为MinecraftServer是一个抽象类,而一些需要用到的函数还是protected,因此无法调用 */
+    /* 你可以尝试反射,因为这里是命令行启动,所以反射会略有些问题 */
+    /* 子类的方法属性还没有改成public,但是子类不可以降低重写方法的访问级别 */
+    /* 因此如果更改MinecraftServer的某方法属性,并且这个方法被子类重写,则会炸端 */
     @SubscribeEvent
     public void OnLivingUpdate(LivingUpdateEvent e) {
         if (e.entity instanceof EntityPlayer) {

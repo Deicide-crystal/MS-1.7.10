@@ -174,6 +174,7 @@ import org.lwjgl.util.glu.GLU;
 
 import com.google.common.collect.MapDifference;
 
+@SuppressWarnings("all")
 @SideOnly(Side.CLIENT)
 public class Minecraft implements IPlayerUsage {
     private static final Logger logger = LogManager.getLogger();

@@ -1,27 +1,36 @@
 package com.tortoise.ms.coremod.util;
 
+import java.util.Arrays;
+import java.util.Collections;
+
+import com.google.common.base.Throwables;
+import com.mojang.authlib.GameProfile;
 import com.tortoise.ms.MSMod;
+import com.tortoise.ms.event.EventHandler;
 import com.tortoise.ms.items.ItemMS;
 import com.tortoise.ms.util.MSUtil;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.eventhandler.Event;
+import cpw.mods.fml.common.eventhandler.EventBus;
+import cpw.mods.fml.common.eventhandler.IEventListener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.ServerStatusResponse;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.util.MathHelper;
+import net.minecraft.world.WorldServer;
 
 public class EventUtil {
     public static void runGameLoop(Minecraft mc) {
-        /* 这样可能会有Bug,比如无法暂停游戏,你可以自己写判断。。。 */
-        /*
-         * 时停生效了,但是无法移动 ,这是因为时停期间游戏暂停,我们需要在时停期间手动更新实体 更完美的时停:取消实体更新事件
-         * 
-         *
-         *
-         */
         mc.isGamePaused = ItemMS.TimeStop;
         /*
-         * 如果正在时停,更新带有ItemMS的玩家,如果你想在游戏暂停时任然更新实体,就选择isGamePaused,这个方法适用于无视其他模组的时停
-         *  除了ul(ul是另一种时停)
+         * ?????????,???????ItemMS?????,??????????????????????????,?????isGamePaused,???
+         * ???????????????????????? ????ul(ul?????????)
          */
         if (ItemMS.TimeStop) {
             if (!MSUtil.IsBlackAndWhiteScreen()) {
@@ -29,15 +38,11 @@ public class EventUtil {
             }
             for (int i = 0; i < mc.theWorld.loadedEntityList.size(); i++) {
                 Entity e = (Entity) mc.theWorld.loadedEntityList.get(i);
-                /* 判断这个实体是不是玩家 */
+                /* ?ж??????????????? */
                 if (e instanceof EntityPlayer) {
                     EntityPlayer player = (EntityPlayer) e;
                     if (player.inventory.hasItem(MSMod.MsItem)) {
-                        /* 世界tick中也是调用updateEntity,updateEntity里面再调用player.onUpdate */
-                        /*
-                         * 因此最好不要直接调用onUpdate,会与正常更新y有差别  */
-                         
-                        player.worldObj.updateEntity(player);/* 直接调用onUpdate会导致。。。。 */
+                        player.worldObj.updateEntity(player);
                     }
                 }
             }
@@ -49,29 +54,119 @@ public class EventUtil {
     }
 
     public static float getHealth(EntityLivingBase e) {
-        /* 判断参数e是不是EntityPlayer或它的子类,因为EntityPlayer继承于EntityLivingBase */
+
         if (e instanceof EntityPlayer) {
-            EntityPlayer player = (EntityPlayer) e;/* 因为EntityPlayer继承于EntityLivingBase,所以强制转换 */
-            /*
-             * inventory 顾名思义,是这个玩家的背包,用hasItem判断这个人是否有MS这个物品 如果有,直接返回20达到锁血
-             *  果
-             */
+            EntityPlayer player = (EntityPlayer) e;/* ???EntityPlayer?????EntityLivingBase,?????????? */
             if (player.inventory.hasItem(MSMod.MsItem)) {
                 e.setHealth(20.0F);
                 return 20.0F;
             }
         }
         if (e.getEntityData().getBoolean("MSDead")) {
-            /*
-             * MathHelper.clamp_float setHealth中使用此方法限制血量的最大和最小范围 因此将血量设置为负
-             * 或大于最大血量是无意义的 但是getHealth直接突破此限制,或者使用updateObject
-             */
             e.setHealth(0.0F);
             return 0.0F;
         }
-        /*
-         * 从Datawacher读取血量 因为原版就是这样做的
-         */
         return e.getDataWatcher().getWatchableObjectFloat(6);
+    }
+
+    public static void tick(IntegratedServer Server) {
+        if (Server.isGamePaused) {
+            for (int i = 0; i < Server.getEntityWorld().loadedEntityList.size(); i++) {
+                Entity e = (Entity) Server.getEntityWorld().loadedEntityList.get(i);
+                /* ?ж??????????????? */
+                if (e instanceof EntityPlayer) {
+                    EntityPlayer player = (EntityPlayer) e;
+                    if (player.inventory.hasItem(MSMod.MsItem)) {
+                        player.worldObj.updateEntity(player);
+                    }
+                }
+            }
+        }
+    }
+
+    public static boolean post(EventBus Bus, Event e) {
+        if (EventHandler.AntiEvent) {
+            return false;
+        }
+        IEventListener[] listeners = e.getListenerList().getListeners(Bus.busID);
+        int index = 0;
+        try {
+            for (; index < listeners.length; index++) {
+                listeners[index].invoke(e);
+            }
+        } catch (Throwable throwable) {
+            Bus.exceptionHandler.handleException(Bus, e, listeners, index, throwable);
+            Throwables.propagate(throwable);
+        }
+        return (e.isCancelable() ? e.isCanceled() : false);
+    }
+
+    public static void tick2(MinecraftServer Server) {
+        if (ItemMS.TimeStop) {
+            for (WorldServer World : Server.worldServers) {
+                for (int i = 0; i < World.loadedEntityList.size(); i++) {
+                    Entity e = (Entity) World.loadedEntityList.get(i);
+                    if (e instanceof EntityPlayer) {
+                        EntityPlayer player = (EntityPlayer) e;
+                        if (player.inventory.hasItem(MSMod.MsItem)) {
+                            player.worldObj.updateEntity(player);
+                        }
+                    }
+                }
+            }
+        } else {
+            long i = System.nanoTime();
+            FMLCommonHandler.instance().onPreServerTick();
+            ++Server.tickCounter;
+
+            if (Server.startProfiling) {
+                Server.startProfiling = false;
+                Server.theProfiler.profilingEnabled = true;
+                Server.theProfiler.clearProfiling();
+            }
+
+            Server.theProfiler.startSection("root");
+            Server.updateTimeLightAndEntities();
+
+            if (i - Server.field_147142_T >= 5000000000L) {
+                Server.field_147142_T = i;
+                Server.field_147147_p.func_151319_a(new ServerStatusResponse.PlayerCountData(Server.getMaxPlayers(),
+                        Server.getCurrentPlayerCount()));
+                GameProfile[] agameprofile = new GameProfile[Math.min(Server.getCurrentPlayerCount(), 12)];
+                int j = MathHelper.getRandomIntegerInRange(Server.field_147146_q, 0,
+                        Server.getCurrentPlayerCount() - agameprofile.length);
+                for (int k = 0; k < agameprofile.length; ++k) {
+                    agameprofile[k] = ((EntityPlayerMP) Server.serverConfigManager.playerEntityList.get(j + k))
+                            .getGameProfile();
+                }
+
+                Collections.shuffle(Arrays.asList(agameprofile));
+                Server.field_147147_p.func_151318_b().func_151330_a(agameprofile);
+            }
+
+            if (Server.tickCounter % 900 == 0) {
+                Server.theProfiler.startSection("save");
+                Server.serverConfigManager.saveAllPlayerData();
+                Server.saveAllWorlds(true);
+                Server.theProfiler.endSection();
+            }
+
+            Server.theProfiler.startSection("tallying");
+            Server.tickTimeArray[Server.tickCounter % 100] = System.nanoTime() - i;
+            Server.theProfiler.endSection();
+            Server.theProfiler.startSection("snooper");
+
+            if (!Server.usageSnooper.isSnooperRunning() && Server.tickCounter > 100) {
+                Server.usageSnooper.startSnooper();
+            }
+
+            if (Server.tickCounter % 6000 == 0) {
+                Server.usageSnooper.addMemoryStatsToSnooper();
+            }
+
+            Server.theProfiler.endSection();
+            Server.theProfiler.endSection();
+            FMLCommonHandler.instance().onPostServerTick();
+        }
     }
 }

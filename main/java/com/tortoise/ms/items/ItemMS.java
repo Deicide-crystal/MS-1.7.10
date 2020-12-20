@@ -1,11 +1,11 @@
 package com.tortoise.ms.items;
 
 import java.util.List;
-import java.util.Vector;
 
 import com.tortoise.ms.MSMod;
 import com.tortoise.ms.entity.EntityRainbowLightningBolt;
 import com.tortoise.ms.util.AntiDisarm;
+import com.tortoise.ms.util.MSUtil;
 import com.tortoise.ms.util.RainbowText;
 import com.tortoise.ms.util.regen.RegenUtil;
 
@@ -75,11 +75,14 @@ public class ItemMS extends ItemSword {
             if (e != p_77659_3_) {/* 以防搞死自己 */
                 if (e instanceof EntityLivingBase) {
                     EntityLivingBase Living = (EntityLivingBase) e;
-                    Living.getEntityData().setBoolean("MSDead", true);
-                    Living.onDeath(DamageSource.outOfWorld);
+                    Living.worldObj.loadedEntityList.remove(Living);
+                    // Living.getEntityData().setBoolean("MSDead", true);
+                    // Living.onDeath(DamageSource.outOfWorld);
                 }
             }
         }
+        /* 此处应有嘲讽代码,不过刚被我删了 */
+        /* 效果如下输出所示 */
         return super.onItemRightClick(p_77659_1_, p_77659_2_, p_77659_3_);
     }
 
@@ -95,6 +98,7 @@ public class ItemMS extends ItemSword {
     public void onPlayerStoppedUsing(ItemStack p_77615_1_, World p_77615_2_, EntityPlayer p_77615_3_, int p_77615_4_) {
         TimeStop = false;
         super.onPlayerStoppedUsing(p_77615_1_, p_77615_2_, p_77615_3_, p_77615_4_);
+
     }
 
     @Override
@@ -106,6 +110,11 @@ public class ItemMS extends ItemSword {
              * 让实体掉落掉落物,如果是玩家发送死亡信息 泰坦生物重写了此方 ,但我们使用asm,可以不用 改血量就让实体GG
              */
             ((EntityLivingBase) entity).onDeath(DamageSource.outOfWorld);
+            if (entity instanceof EntityPlayer) {/* EntityPlayer也继承EntityLivingBase */
+                /* 可以写在if(entity instanceof EntityLivingBase) 外边,也可以写在里面 */
+                MSUtil.ChatPrint((EntityPlayer) entity,
+                        new StringBuilder().append(player.getCommandSenderName()).append(" LLLLL").toString());
+            }
         }
         return super.onLeftClickEntity(stack, player, entity);
     }
@@ -163,6 +172,14 @@ public class ItemMS extends ItemSword {
             for (Entity e : Entities) {
                 if (e instanceof EntityLivingBase) {
                     ((EntityLivingBase) e).onDeath(DamageSource.outOfWorld);/* 掉落掉落物 */
+                    /* 因为挥手动作也可能由非玩家实体触发,所以判断挥手的是不是玩家 */
+                    if (entityLiving instanceof EntityPlayer
+                            && e instanceof EntityPlayer) {/* EntityPlayer也继承EntityLivingBase */
+                        /* 可以写在if(entity instanceof EntityLivingBase) 外边,也可以写在里面 */
+                        MSUtil.ChatPrint((EntityPlayer) e,
+                                new StringBuilder().append(((EntityPlayer) entityLiving).getCommandSenderName())
+                                        .append(" LLLLL").toString());
+                    }
                 }
                 e.worldObj.removePlayerEntityDangerously(e);
                 e.isDead = true;/* 如果isDead为true,则下一Tick移除 */
